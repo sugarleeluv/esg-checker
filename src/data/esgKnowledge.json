@@ -1,0 +1,79 @@
+{
+  "definitions": {
+    "esg": {
+      "id": "ESG (Environmental, Social, and Governance) adalah kerangka kerja tiga pilar utama untuk menganalisis kinerja keberlanjutan, kepatuhan etika, dan dampak sosial-ekonomi dari aktivitas bisnis perusahaan.",
+      "en": "ESG (Environmental, Social, and Governance) is a three-pillar framework for analyzing a company's sustainability performance, ethical compliance, and socio-economic impact."
+    },
+    "esgCost": {
+      "id": "Skor ESG Cost mengukur komitmen investasi, alokasi anggaran, dan keterbukaan transparansi biaya yang dikeluarkan perusahaan untuk inisiatif lingkungan, sosial, serta kepatuhan tata kelola.",
+      "en": "The ESG Cost score measures the investment commitment, budget allocation, and cost transparency of the expenditures incurred by the company for environmental, social, and governance compliance initiatives."
+    },
+    "esgExpectedBenefit": {
+      "id": "Skor ESG Expected Benefit mengukur efektivitas, dampak positif, hasil konkret, serta nilai tambah yang diperoleh pemangku kepentingan dan lingkungan dari realisasi program keberlanjutan emiten.",
+      "en": "The ESG Expected Benefit score measures the effectiveness, positive impact, concrete outcomes, and value added to stakeholders and the environment from the implementation of the issuer's sustainability programs."
+    }
+  },
+  "pillars": {
+    "environmental": {
+      "id": "Pilar Lingkungan (Environmental) berfokus pada kelestarian alam dan pengelolaan dampak ekologis. Ini mencakup topik material seperti emisi gas rumah kaca (GRK), adaptasi iklim, pengelolaan air, konservasi keanekaragaman hayati, penanganan limbah, pengelolaan endapan sisa tambang (tailings), serta rencana penutupan dan rehabilitasi lahan tambang.",
+      "en": "The Environmental pillar focuses on ecological preservation and impact management. It covers material topics such as greenhouse gas (GHG) emissions, climate adaptation, water management, biodiversity conservation, waste handling, tailings management, and mine closure and land rehabilitation plans."
+    },
+    "social": {
+      "id": "Pilar Sosial (Social) berfokus pada keadilan sosial, hubungan ketenagakerjaan, dan interaksi dengan masyarakat sekitar. Ini mencakup hak asasi manusia, hak masyarakat adat, pengembangan komunitas lokal, royalti/pajak daerah, keselamatan & kesehatan kerja (K3), hak-hak pekerja, serta pencegahan diskriminasi di tempat kerja.",
+      "en": "The Social pillar focuses on social equity, labor relations, and community interaction. It covers human rights, rights of Indigenous Peoples, local community development, regional royalties/taxes, occupational health & safety (OHS), workers' rights, and workplace non-discrimination."
+    },
+    "governance": {
+      "id": "Pilar Tata Kelola (Governance) berfokus pada integritas manajemen, struktur pengawasan, dan kepatuhan hukum. Ini mencakup pencegahan korupsi & suap, transparansi pembayaran kepada pemerintah, etika kebijakan publik, serta kepatuhan operasi di wilayah berkonflik atau berisiko tinggi.",
+      "en": "The Governance pillar focuses on managerial integrity, oversight structure, and legal compliance. It covers anti-corruption & bribery prevention, government payments transparency, public policy ethics, and operations compliance in conflict-affected or high-risk regions."
+    }
+  },
+  "gri14": {
+    "id": "GRI 14 (Global Reporting Initiative Sector Standard for Mining 2024) adalah standar global khusus sektor pertambangan yang menetapkan 25 topik material guna mewujudkan pelaporan disclosure keberlanjutan yang transparan, kredibel, dan dapat dibandingkan.",
+    "en": "GRI 14 (Global Reporting Initiative Sector Standard for Mining 2024) is a mining sector-specific global standard defining 25 material topics to enable transparent, credible, and comparable sustainability disclosure reporting."
+  },
+  "scoringScale": {
+    "id": "Skala penilaian di platform ESG Checker berkisar dari 0 hingga 3. Skor 3 (Kuat / High) menandakan keterbukaan pengungkapan penuh dengan dukungan bukti/nominal yang valid. Skor 2 (Sedang / Medium) menandakan pengungkapan sebagian informasi. Skor 1 (Lemah / Low) menandakan pengungkapan minimal. Skor 0 menandakan data tidak diungkapkan atau belum tersedia.",
+    "en": "The scoring scale in the ESG Checker platform ranges from 0 to 3. A score of 3 (Strong / High) indicates full disclosure with valid supporting evidence/nominal details. A score of 2 (Medium / Medium) indicates partial disclosure of information. A score of 1 (Weak / Low) indicates minimal disclosure. A score of 0 indicates undisclosed or unavailable data."
+  },
+  "categories": {
+    "high": {
+      "id": "Kuat (High): Skor rata-rata kumulatif >= 83.3%. Emiten menunjukkan transparansi unggul dan komitmen tingkat tinggi terhadap standar kepatuhan ESG.",
+      "en": "Strong (High): Cumulative average score >= 83.3%. The issuer shows superior transparency and a high level of commitment to ESG compliance standards."
+    },
+    "medium": {
+      "id": "Sedang (Medium): Skor rata-rata kumulatif >= 50% dan < 83.3%. Emiten memenuhi standar kepatuhan dasar dengan beberapa area pengungkapan yang masih perlu dioptimalkan.",
+      "en": "Medium (Medium): Cumulative average score >= 50% and < 83.3%. The issuer meets basic compliance standards with several disclosure areas that still need optimization."
+    },
+    "low": {
+      "id": "Lemah (Low): Skor rata-rata kumulatif < 50%. Emiten menunjukkan tingkat pengungkapan minimal dan memerlukan perbaikan tata kelola serta transparansi ESG yang signifikan.",
+      "en": "Weak (Low): Cumulative average score < 50%. The issuer shows minimal disclosure levels and requires significant improvements in ESG transparency and governance."
+    }
+  },
+  "interpretingRules": [
+    {
+      "id": "Skor ESG yang ditampilkan mencerminkan tingkat pengungkapan (disclosure) informasi dan kelengkapan transparansi emiten sesuai standar pelaporan, bukan ukuran kinerja fisik atau keberhasilan operasi lapangan di lokasi tambang.",
+      "en": "The displayed ESG scores reflect the level of information disclosure and completeness of issuer transparency according to reporting standards, not a physical performance metric or the success of on-the-field operations at the mine site."
+    },
+    {
+      "id": "Skor tidak boleh diterjemahkan sebagai persentase implementasi fisik proyek kecuali secara spesifik didefinisikan demikian oleh parameter penilaian terkait.",
+      "en": "Scores must not be interpreted as a physical project implementation percentage unless specifically defined as such by the relevant assessment parameters."
+    }
+  ],
+  "glossary": [
+    {
+      "term": "Tailings",
+      "definitionId": "Limbah sisa proses pemisahan bijih mineral berharga dari batuan yang tidak bernilai dalam operasi pertambangan. Pengelolaannya diatur ketat di topik material GRI 14.6 karena risiko pencemaran ekologis yang tinggi.",
+      "definitionEn": "Residue waste left over from separating valuable mineral ore from worthless rock in mining operations. Its management is strictly regulated under GRI 14.6 due to high ecological contamination risks."
+    },
+    {
+      "term": "Rehabilitasi Tambang",
+      "definitionId": "Upaya memulihkan fungsi lahan bekas tambang agar kembali produktif secara ekologis dan bermanfaat bagi komunitas setelah operasi penambangan selesai (GRI 14.8).",
+      "definitionEn": "Efforts to restore the ecological function of post-mining land to be productive and beneficial for the community after mining operations cease (GRI 14.8)."
+    },
+    {
+      "term": "GRI 14",
+      "definitionId": "Standar Global Reporting Initiative sektor pertambangan tahun 2024.",
+      "definitionEn": "Global Reporting Initiative Mining Sector Standard (2024)."
+    }
+  ]
+}

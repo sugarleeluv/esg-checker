@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Pillar {
+  E
+  S
+  G
+}
+
+enum ScoreLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Company {
+  ticker        String   @id
+  name          String?
+  sector        String?  @default("Mining")
+  localeDefault String   @default("id") @map("locale_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  topicScores TopicScore[]
+  profile     CompanyProfile?
+  insights    CompanyInsight[]
+
+  @@map("companies")
+}
+
+model GriTopic {
+  code      String @id
+  pillar    Pillar
+  sortOrder Int    @map("sort_order")
+  titleId   String @map("title_id")
+  titleEn   String @map("title_en")
+
+  topicScores TopicScore[]
+
+  @@map("gri_topics")
+}
+
+model TopicScore {
+  id              String     @id @default(cuid())
+  companyTicker   String     @map("company_ticker")
+  topicCode       String     @map("topic_code")
+  type            String     @default("COST") @map("type")
+  score           Int
+  status          ScoreLevel
+  disclosureText  String?    @map("disclosure_text") @db.Text
+  nominalCost     String?    @map("nominal_cost")
+  rationaleId     String?    @map("rationale_id") @db.Text
+  rationaleEn     String?    @map("rationale_en") @db.Text
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  company Company  @relation(fields: [companyTicker], references: [ticker], onDelete: Cascade)
+  topic   GriTopic @relation(fields: [topicCode], references: [code], onDelete: Cascade)
+
+  @@unique([companyTicker, topicCode, type])
+  @@map("topic_scores")
+}
+
+model CompanyProfile {
+  ticker       String   @id
+  name         String?
+  sector       String?
+  subSector    String?  @map("sub_sector")
+  listingBoard String?  @map("listing_board")
+  address      String?  @db.Text
+  website      String?
+  idxRaw       Json?    @map("idx_raw")
+  syncedAt     DateTime @default(now()) @map("synced_at")
+
+  company Company @relation(fields: [ticker], references: [ticker], onDelete: Cascade)
+
+  @@map("company_profiles")
+}
+
+model CompanyInsight {
+  id              String   @id @default(cuid())
+  companyTicker   String   @map("company_ticker")
+  locale          String   @default("id")
+  strengths       Json
+  weaknesses      Json
+  overallAssessment String @map("overall_assessment") @db.Text
+  futureInterpretation String @map("future_interpretation") @db.Text
+  generatedAt     DateTime @default(now()) @map("generated_at")
+  version         Int      @default(1)
+
+  company Company @relation(fields: [companyTicker], references: [ticker], onDelete: Cascade)
+
+  @@unique([companyTicker, locale])
+  @@map("company_insights")
+}
