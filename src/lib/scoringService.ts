@@ -54,7 +54,7 @@ interface CacheEntry {
   timestamp: number;
 }
 let cachedData: CacheEntry | null = null;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 0; // Disable cache for real-time updates
 
 // Expected target totals for validation
 const EXPECTED_TARGETS: Record<string, {
