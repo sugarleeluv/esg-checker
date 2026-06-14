@@ -31,13 +31,13 @@ export function CompanyCard({
           {company.hasScores && company.scores && (
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#475569]">
               <span className="rounded-md bg-slate-100 px-2 py-0.5">
-                E {company.scores.pillars.E.toFixed(1)}
+                E {(company.scores.pillars.E * 100).toFixed(2)}%
               </span>
               <span className="rounded-md bg-slate-100 px-2 py-0.5">
-                S {company.scores.pillars.S.toFixed(1)}
+                S {(company.scores.pillars.S * 100).toFixed(2)}%
               </span>
               <span className="rounded-md bg-slate-100 px-2 py-0.5">
-                G {company.scores.pillars.G.toFixed(1)}
+                G {(company.scores.pillars.G * 100).toFixed(2)}%
               </span>
             </div>
           )}
@@ -47,9 +47,8 @@ export function CompanyCard({
             <>
               <p className="text-xs text-[#D97706] uppercase tracking-wide">{L.overall}</p>
               <p className="text-2xl font-bold text-[#0F172A]">
-                {company.scores.overall.toFixed(2)}
+                {(company.scores.overall * 100).toFixed(2)}%
               </p>
-              <p className="text-xs text-slate-400">/ 3.00</p>
               <span
                 className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
                   company.scores.overallLevel === "HIGH"

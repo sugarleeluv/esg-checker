@@ -27,8 +27,8 @@ export function ESGPieChart({
   const dotRadiusOuter = isCompact ? 6.5 : 9;
   const dotRadiusInner = isCompact ? 2.5 : 3.5;
 
-  // Score value scaled out of 100
-  const scoreVal = Math.round(scores.overall * 100);
+  // Score value scaled out of 100 with 2 decimal places
+  const scoreVal = (scores.overall * 100).toFixed(2);
 
   // Gauge angle starts at Math.PI (180 deg, left) and ends at 0 (0 deg, right)
   const angle = scores.overall * Math.PI;

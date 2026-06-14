@@ -18,32 +18,54 @@ export interface ParsedCompanyBlock {
   rows: ParsedTopicRow[];
 }
 
-const TICKER_RE = /^,([A-Z]{3,5}),/;
-
-function parseCsvLine(line: string): string[] {
-  const fields: string[] = [];
-  let current = "";
+function parseCsvToRows(csv: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = "";
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
+  for (let i = 0; i < csv.length; i++) {
+    const ch = csv[i];
+    const nextCh = csv[i + 1];
+
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
+      if (inQuotes && nextCh === '"') {
+        currentField += '"';
+        i++; // skip next quote
       } else {
         inQuotes = !inQuotes;
       }
     } else if (ch === "," && !inQuotes) {
-      fields.push(current);
-      current = "";
+      currentRow.push(currentField);
+      currentField = "";
+    } else if ((ch === "\r" || ch === "\n") && !inQuotes) {
+      if (ch === "\r" && nextCh === "\n") {
+        i++; // skip \n
+      }
+      currentRow.push(currentField);
+      if (currentRow.some((field) => field.trim().length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = "";
     } else {
-      current += ch;
+      currentField += ch;
     }
   }
-  fields.push(current);
-  return fields;
+
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField);
+    if (currentRow.some((field) => field.trim().length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
 }
+
+const isTickerRow = (row: string[]): boolean => {
+  return row.length >= 2 && row[0] === "" && /^[A-Z]{3,5}$/.test(row[1]);
+};
 
 function extractTopicCode(title: string): string | null {
   const match = title.match(/14\.\d+/);
@@ -57,8 +79,8 @@ function mapStatus(raw: string): ScoreLevel {
   return "MEDIUM";
 }
 
-function detectLocale(blockLines: string[]): "id" | "en" {
-  const sample = blockLines.join(" ").toLowerCase();
+function detectLocale(blockRows: string[][]): "id" | "en" {
+  const sample = blockRows.map((row) => row.join(",")).join(" ").toLowerCase();
   if (
     sample.includes("high,") ||
     sample.includes(",low,") ||
@@ -71,40 +93,41 @@ function detectLocale(blockLines: string[]): "id" | "en" {
 }
 
 function parseDataRows(
-  lines: string[], 
-  startIdx: number, 
-  locale: "id" | "en", 
+  rows: string[][],
+  startIdx: number,
+  locale: "id" | "en",
   type: "COST" | "BENEFIT" = "COST"
 ): ParsedTopicRow[] {
-  const rows: ParsedTopicRow[] = [];
+  const result: ParsedTopicRow[] = [];
 
-  for (let i = startIdx; i < lines.length; i++) {
-    const line = lines[i];
-    if (TICKER_RE.test(line)) break;
-    if (!line.includes("14.")) continue;
+  for (let i = startIdx; i < rows.length; i++) {
+    const row = rows[i];
+    if (isTickerRow(row)) break;
 
-    const fields = parseCsvLine(line);
-    const pillar = (fields[1]?.trim() || "") as "E" | "S" | "G" | "";
-    const title = fields[2]?.trim() || "";
+    const hasTopic = row.some((field) => field.includes("14."));
+    if (!hasTopic) continue;
+
+    const pillar = (row[1]?.trim() || "") as "E" | "S" | "G" | "";
+    const title = row[2]?.trim() || "";
     const topicCode = extractTopicCode(title);
     if (!topicCode) continue;
 
-    const disclosureText = fields[3]?.trim() || "";
-    
+    const disclosureText = row[3]?.trim() || "";
+
     let nominalCost = "";
     let statusRaw = "";
     let scoreRaw = "";
     let rationale = "";
 
     if (type === "BENEFIT") {
-      statusRaw = fields[4]?.trim() || "";
-      scoreRaw = fields[5]?.trim() || "";
-      rationale = fields[6]?.trim() || "";
+      statusRaw = row[4]?.trim() || "";
+      scoreRaw = row[5]?.trim() || "";
+      rationale = row[6]?.trim() || "";
     } else {
-      nominalCost = fields[4]?.trim() || "";
-      statusRaw = fields[5]?.trim() || "";
-      scoreRaw = fields[6]?.trim() || "";
-      rationale = fields[7]?.trim() || "";
+      nominalCost = row[4]?.trim() || "";
+      statusRaw = row[5]?.trim() || "";
+      scoreRaw = row[6]?.trim() || "";
+      rationale = row[7]?.trim() || "";
     }
 
     const score = parseInt(scoreRaw, 10);
@@ -113,11 +136,11 @@ function parseDataRows(
     const effectivePillar =
       pillar === "E" || pillar === "S" || pillar === "G"
         ? pillar
-        : rows.length > 0
-          ? rows[rows.length - 1].pillar
+        : result.length > 0
+          ? result[result.length - 1].pillar
           : "E";
 
-    rows.push({
+    result.push({
       topicCode,
       pillar: effectivePillar,
       title,
@@ -130,33 +153,36 @@ function parseDataRows(
     });
   }
 
-  return rows;
+  return result;
 }
 
 export function parseSheetCsv(csv: string, type: "COST" | "BENEFIT" = "COST"): ParsedCompanyBlock[] {
-  const lines = csv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  const rows = parseCsvToRows(csv);
   const blocks: ParsedCompanyBlock[] = [];
   const seen = new Set<string>();
 
-  for (let i = 0; i < lines.length; i++) {
-    const tickerMatch = lines[i].match(TICKER_RE);
-    if (!tickerMatch) continue;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if (!isTickerRow(row)) continue;
 
-    const ticker = tickerMatch[1];
-    const headerIdx = lines.findIndex(
-      (l, idx) => idx > i && l.includes("Topik Material GRI 14")
+    const ticker = row[1];
+    const headerIdx = rows.findIndex(
+      (r, idx) =>
+        idx > i &&
+        (r.some((field) => field.includes("Topik Material GRI 14")) ||
+          r.join(",").includes("Topik Material GRI 14"))
     );
     if (headerIdx === -1) continue;
 
-    const blockLines = lines.slice(i, i + 40);
-    const locale = detectLocale(blockLines);
+    const blockRows = rows.slice(i, i + 40);
+    const locale = detectLocale(blockRows);
     const key = `${ticker}-${locale}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const rows = parseDataRows(lines, headerIdx + 1, locale, type);
-    if (rows.length > 0) {
-      blocks.push({ ticker, locale, rows });
+    const parsedRows = parseDataRows(rows, headerIdx + 1, locale, type);
+    if (parsedRows.length > 0) {
+      blocks.push({ ticker, locale, rows: parsedRows });
     }
   }
 

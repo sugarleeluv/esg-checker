@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useLocale } from "@/components/providers/LocaleProvider";
 import { EmitenLogo } from "@/components/EmitenLogo";
 import { InsightBox } from "@/components/ui/InsightBox";
-import { levelLabel, aggregateScores } from "@/lib/scoring";
+import { levelLabel, aggregateScores, getTopicTitleTranslation } from "@/lib/scoring";
 import type { ClientCompany, ClientTopic } from "./ComparePageContent";
 
 
@@ -42,45 +42,21 @@ export function CompareClient({
 }) {
   const { locale, L } = useLocale();
 
-  // Compute ESG Cost and Benefit scores for each company on the fly
+  // Precomputed ESG Cost and Benefit scores for each company
   const computedScores = useMemo(() => {
     return allCompanies.reduce((acc, c) => {
-      const costScoresRaw = c.topicScores.filter((ts) => !ts.type || ts.type === "COST");
-      const benefitScoresRaw = c.topicScores.filter((ts) => ts.type === "BENEFIT");
-
-      const hasCost = costScoresRaw.length > 0;
-      const hasBenefit = benefitScoresRaw.length > 0;
-
-      const costAggregated = hasCost
-        ? aggregateScores(
-            costScoresRaw.map((s) => ({
-              score: s.score,
-              pillar: s.topic.pillar as "E" | "S" | "G",
-            }))
-          )
-        : null;
-
-      const benefitAggregated = hasBenefit
-        ? aggregateScores(
-            benefitScoresRaw.map((s) => ({
-              score: s.score,
-              pillar: s.topic.pillar as "E" | "S" | "G",
-            }))
-          )
-        : null;
-
       acc[c.ticker] = {
-        hasCost,
-        hasBenefit,
-        cost: costAggregated,
-        benefit: benefitAggregated,
+        hasCost: c.hasScores,
+        hasBenefit: c.hasBenefitScores,
+        cost: c.scores,
+        benefit: c.benefitScores,
       };
       return acc;
     }, {} as Record<string, {
       hasCost: boolean;
       hasBenefit: boolean;
-      cost: ReturnType<typeof aggregateScores> | null;
-      benefit: ReturnType<typeof aggregateScores> | null;
+      cost: ClientCompany["scores"];
+      benefit: ClientCompany["benefitScores"];
     }>);
   }, [allCompanies]);
 
@@ -116,11 +92,11 @@ export function CompareClient({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Tab & Filters State Management
-  const [activeTab, setActiveTab] = useState<"summary" | "pillars" | "cost" | "benefit">(() => {
+  const [activeTab, setActiveTab] = useState<"summary" | "pillars" | "cost" | "benefit" | "readiness">(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "summary" || tabParam === "pillars" || tabParam === "cost" || tabParam === "benefit") {
+      if (tabParam === "summary" || tabParam === "pillars" || tabParam === "cost" || tabParam === "benefit" || tabParam === "readiness") {
         return tabParam;
       }
     }
@@ -131,7 +107,7 @@ export function CompareClient({
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab");
-      if (tabParam === "summary" || tabParam === "pillars" || tabParam === "cost" || tabParam === "benefit") {
+      if (tabParam === "summary" || tabParam === "pillars" || tabParam === "cost" || tabParam === "benefit" || tabParam === "readiness") {
         setActiveTab(tabParam);
       }
     };
@@ -139,7 +115,7 @@ export function CompareClient({
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  const handleTabChange = (tab: "summary" | "pillars" | "cost" | "benefit") => {
+  const handleTabChange = (tab: "summary" | "pillars" | "cost" | "benefit" | "readiness") => {
     setActiveTab(tab);
     const url = new URL(window.location.href);
     url.searchParams.set("tab", tab);
@@ -174,6 +150,11 @@ export function CompareClient({
     G: false,
   });
 
+  // Readiness Filters & Expanded State
+  const [readinessDiffsOnly, setReadinessDiffsOnly] = useState(false);
+  const [readinessPillarFilter, setReadinessPillarFilter] = useState<"all" | "E" | "S" | "G">("all");
+  const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
+
   // Reset filters when selections change (using render-time state synchronization to avoid effect cascading renders)
   const [prevLeftTicker, setPrevLeftTicker] = useState(leftCompany?.ticker || "");
   const [prevRightTicker, setPrevRightTicker] = useState(rightCompany?.ticker || "");
@@ -190,6 +171,10 @@ export function CompareClient({
     setBenefitPillarFilter("all");
     setBenefitExpanded({ E: true, S: false, G: false });
     setBenefitShowAll({ E: false, S: false, G: false });
+
+    setReadinessDiffsOnly(false);
+    setReadinessPillarFilter("all");
+    setExpandedTopics({});
   }
 
   const toggleCostAccordion = (p: "E" | "S" | "G") => {
@@ -344,8 +329,8 @@ export function CompareClient({
       let gap = 0;
 
       if (costOverall !== null && benefitOverall !== null) {
-        const costVal = Math.round(costOverall * 100);
-        const benefitVal = Math.round(benefitOverall * 100);
+        const costVal = costOverall * 100;
+        const benefitVal = benefitOverall * 100;
         gap = Math.abs(benefitVal - costVal);
         if (benefitVal > costVal) {
           benefitVsCostRelation = "higher";
@@ -359,8 +344,8 @@ export function CompareClient({
         weakest,
         relation: benefitVsCostRelation,
         gap,
-        costOverall: costOverall !== null ? Math.round(costOverall * 100) : null,
-        benefitOverall: benefitOverall !== null ? Math.round(benefitOverall * 100) : null,
+        costOverall: costOverall !== null ? costOverall * 100 : null,
+        benefitOverall: benefitOverall !== null ? benefitOverall * 100 : null,
       };
     };
 
@@ -374,13 +359,13 @@ export function CompareClient({
         sentenceA = `${cA.ticker} memiliki performa terkuat pada pilar ${statsA.strongest}, sedangkan pilar ${statsA.weakest} menjadi komponen yang masih perlu diperkuat.`;
         if (statsA.costOverall !== null && statsA.benefitOverall !== null) {
           const relationWord = statsA.relation === "higher" ? "lebih tinggi" : statsA.relation === "lower" ? "lebih rendah" : "sama dengan";
-          sentenceA += ` ESG Benefit Score ${relationWord} ${statsA.gap} poin dibandingkan ESG Cost Score.`;
+          sentenceA += ` ESG Benefit Score ${relationWord} ${statsA.gap.toFixed(2)} poin dibandingkan ESG Cost Score.`;
         }
       } else {
         sentenceA = `${cA.ticker} performs strongest in the ${statsA.strongest} pillar, while ${statsA.weakest} remains its main improvement priority.`;
         if (statsA.costOverall !== null && statsA.benefitOverall !== null) {
           const relationWord = statsA.relation === "higher" ? "higher" : statsA.relation === "lower" ? "lower" : "equal to";
-          sentenceA += ` Its ESG Benefit Score is ${statsA.gap} points ${relationWord} than its ESG Cost Score.`;
+          sentenceA += ` Its ESG Benefit Score is ${statsA.gap.toFixed(2)} points ${relationWord} than its ESG Cost Score.`;
         }
       }
     }
@@ -412,7 +397,7 @@ export function CompareClient({
           const gap = Math.abs(tsA_Cost.score - tsB_Cost.score);
           if (gap > largestGap) {
             largestGap = gap;
-            largestGapName = isId ? topic.titleId : topic.titleEn;
+            largestGapName = getTopicTitleTranslation(topic.code, locale, isId ? topic.titleId : topic.titleEn);
             largestGapType = "TOPIC";
             valA = tsA_Cost.score;
             valB = tsB_Cost.score;
@@ -426,7 +411,7 @@ export function CompareClient({
           const gap = Math.abs(tsA_Benefit.score - tsB_Benefit.score);
           if (gap > largestGap) {
             largestGap = gap;
-            largestGapName = isId ? topic.titleId : topic.titleEn;
+            largestGapName = getTopicTitleTranslation(topic.code, locale, isId ? topic.titleId : topic.titleEn);
             largestGapType = "TOPIC";
             valA = tsA_Benefit.score;
             valB = tsB_Benefit.score;
@@ -446,8 +431,8 @@ export function CompareClient({
           if (gap > largestGap) {
             largestGap = gap;
             largestGapName = p === "E" ? (isId ? "Lingkungan" : "Environmental") : p === "S" ? (isId ? "Sosial" : "Social") : (isId ? "Tata Kelola" : "Governance");
-            valA = Math.round(pA_Cost * 100);
-            valB = Math.round(pB_Cost * 100);
+            valA = pA_Cost * 100;
+            valB = pB_Cost * 100;
           }
         }
 
@@ -458,8 +443,8 @@ export function CompareClient({
           if (gap > largestGap) {
             largestGap = gap;
             largestGapName = p === "E" ? (isId ? "Lingkungan" : "Environmental") : p === "S" ? (isId ? "Sosial" : "Social") : (isId ? "Tata Kelola" : "Governance");
-            valA = Math.round(pA_Benefit * 100);
-            valB = Math.round(pB_Benefit * 100);
+            valA = pA_Benefit * 100;
+            valB = pB_Benefit * 100;
           }
         }
       }
@@ -479,9 +464,9 @@ export function CompareClient({
         }
       } else {
         if (isId) {
-          sentenceDiff = `Perbedaan terbesar antara kedua perusahaan terdapat pada pilar ${cleanGapName}, dengan selisih sebesar ${Math.round(largestGap)} poin.`;
+          sentenceDiff = `Perbedaan terbesar antara kedua perusahaan terdapat pada pilar ${cleanGapName}, dengan selisih sebesar ${largestGap.toFixed(2)} poin.`;
         } else {
-          sentenceDiff = `The largest difference between the two companies occurs in the ${cleanGapName} pillar, with a gap of ${Math.round(largestGap)} points.`;
+          sentenceDiff = `The largest difference between the two companies occurs in the ${cleanGapName} pillar, with a gap of ${largestGap.toFixed(2)} points.`;
         }
       }
     }
@@ -514,59 +499,59 @@ export function CompareClient({
     const conclusionPoints: string[] = [];
     if (!isMixed) {
       if (costOverallA !== null && costOverallB !== null) {
-        const costValA = Math.round(costOverallA * 100);
-        const costValB = Math.round(costOverallB * 100);
+        const costValA = costOverallA * 100;
+        const costValB = costOverallB * 100;
         if (costValA > costValB) {
           conclusionPoints.push(
             isId
-              ? `${cA.ticker} memiliki Skor ESG Cost yang lebih tinggi (${costValA} vs ${costValB}).`
-              : `${cA.ticker} has a higher ESG Cost Score (${costValA} vs ${costValB}).`
+              ? `${cA.ticker} memiliki Skor ESG Cost yang lebih tinggi (${costValA.toFixed(2)}% vs ${costValB.toFixed(2)}%).`
+              : `${cA.ticker} has a higher ESG Cost Score (${costValA.toFixed(2)}% vs ${costValB.toFixed(2)}%).`
           );
         } else if (costValB > costValA) {
           conclusionPoints.push(
             isId
-              ? `${cB.ticker} memiliki Skor ESG Cost yang lebih tinggi (${costValB} vs ${costValA}).`
-              : `${cB.ticker} has a higher ESG Cost Score (${costValB} vs ${costValA}).`
+              ? `${cB.ticker} memiliki Skor ESG Cost yang lebih tinggi (${costValB.toFixed(2)}% vs ${costValA.toFixed(2)}%).`
+              : `${cB.ticker} has a higher ESG Cost Score (${costValB.toFixed(2)}% vs ${costValA.toFixed(2)}%).`
           );
         } else {
           conclusionPoints.push(
             isId
-              ? `Kedua perusahaan memiliki Skor ESG Cost yang sama (${costValA}).`
-              : `Both companies have the same ESG Cost Score (${costValA}).`
+              ? `Kedua perusahaan memiliki Skor ESG Cost yang sama (${costValA.toFixed(2)}%).`
+              : `Both companies have the same ESG Cost Score (${costValA.toFixed(2)}%).`
           );
         }
       }
 
       if (benefitOverallA !== null && benefitOverallB !== null) {
-        const benefitValA = Math.round(benefitOverallA * 100);
-        const benefitValB = Math.round(benefitOverallB * 100);
+        const benefitValA = benefitOverallA * 100;
+        const benefitValB = benefitOverallB * 100;
         if (benefitValA > benefitValB) {
           conclusionPoints.push(
             isId
-              ? `${cA.ticker} memiliki Skor ESG Benefit yang lebih tinggi (${benefitValA} vs ${benefitValB}).`
-              : `${cA.ticker} has a higher ESG Benefit Score (${benefitValA} vs ${benefitValB}).`
+              ? `${cA.ticker} memiliki Skor ESG Benefit yang lebih tinggi (${benefitValA.toFixed(2)}% vs ${benefitValB.toFixed(2)}%).`
+              : `${cA.ticker} has a higher ESG Benefit Score (${benefitValA.toFixed(2)}% vs ${benefitValB.toFixed(2)}%).`
           );
         } else if (benefitValB > benefitValA) {
           conclusionPoints.push(
             isId
-              ? `${cB.ticker} memiliki Skor ESG Benefit yang lebih tinggi (${benefitValB} vs ${benefitValA}).`
-              : `${cB.ticker} has a higher ESG Benefit Score (${benefitValB} vs ${benefitValA}).`
+              ? `${cB.ticker} memiliki Skor ESG Benefit yang lebih tinggi (${benefitValB.toFixed(2)}% vs ${benefitValA.toFixed(2)}%).`
+              : `${cB.ticker} has a higher ESG Benefit Score (${benefitValB.toFixed(2)}% vs ${benefitValA.toFixed(2)}%).`
           );
         } else {
           conclusionPoints.push(
             isId
-              ? `Kedua perusahaan memiliki Skor ESG Benefit yang sama (${benefitValA}).`
-              : `Both companies have the same ESG Benefit Score (${benefitValA}).`
+              ? `Kedua perusahaan memiliki Skor ESG Benefit yang sama (${benefitValA.toFixed(2)}%).`
+              : `Both companies have the same ESG Benefit Score (${benefitValA.toFixed(2)}%).`
           );
         }
       }
 
       if (largestGap !== -1) {
-        const gapVal = largestGapType === "TOPIC" ? largestGap : Math.round(largestGap);
+        const gapVal = largestGapType === "TOPIC" ? `${largestGap} poin` : `${largestGap.toFixed(2)}%`;
         conclusionPoints.push(
           isId
-            ? `${largestGapType === "TOPIC" ? "Topik" : "Pilar"} ${cleanGapName} menghasilkan perbedaan terbesar dengan selisih ${gapVal} poin.`
-            : `The ${largestGapType === "TOPIC" ? "topic" : "pillar"} ${cleanGapName} creates the largest difference with a gap of ${gapVal} points.`
+            ? `${largestGapType === "TOPIC" ? "Topik" : "Pilar"} ${cleanGapName} menghasilkan perbedaan terbesar dengan selisih ${gapVal}.`
+            : `The ${largestGapType === "TOPIC" ? "topic" : "pillar"} ${cleanGapName} creates the largest difference with a gap of ${gapVal}.`
         );
       }
     }
@@ -596,7 +581,7 @@ export function CompareClient({
       return {
         topicCode: topic.code,
         pillar: topic.pillar,
-        title: locale === "id" ? topic.titleId : topic.titleEn,
+        title: getTopicTitleTranslation(topic.code, locale, locale === "id" ? topic.titleId : topic.titleEn),
         cells,
       };
     });
@@ -617,7 +602,7 @@ export function CompareClient({
       return {
         topicCode: topic.code,
         pillar: topic.pillar,
-        title: locale === "id" ? topic.titleId : topic.titleEn,
+        title: getTopicTitleTranslation(topic.code, locale, locale === "id" ? topic.titleId : topic.titleEn),
         cells,
       };
     });
@@ -780,7 +765,7 @@ export function CompareClient({
               {scoreInfo?.hasCost && scoreInfo?.cost ? (
                 <div className="mt-1 flex flex-col items-center">
                   <span className="text-base font-extrabold text-[#0F1B33] font-mono leading-none">
-                    {Math.round(scoreInfo.cost.overall * 100)}
+                    {(scoreInfo.cost.overall * 100).toFixed(2)}%
                   </span>
                   <span
                     className={`inline-flex items-center justify-center rounded px-2 py-0.5 text-[9px] font-bold mt-1.5 border ${
@@ -809,7 +794,7 @@ export function CompareClient({
               {scoreInfo?.hasBenefit && scoreInfo?.benefit ? (
                 <div className="mt-1 flex flex-col items-center pl-1">
                   <span className="text-base font-extrabold text-[#0F1B33] font-mono leading-none">
-                    {Math.round(scoreInfo.benefit.overall * 100)}
+                    {(scoreInfo.benefit.overall * 100).toFixed(2)}%
                   </span>
                   <span
                     className={`inline-flex items-center justify-center rounded px-2 py-0.5 text-[9px] font-bold mt-1.5 border ${
@@ -891,7 +876,7 @@ export function CompareClient({
 
     const formatScore = (val: number | null) => {
       if (val === null || val === undefined) return "-";
-      return Math.round(val * 100);
+      return (val * 100).toFixed(2) + "%";
     };
 
     return (
@@ -902,8 +887,8 @@ export function CompareClient({
           const costB = scoresB.cost?.pillars[p.key as "E" | "S" | "G"] ?? null;
           const benefitB = scoresB.benefit?.pillars[p.key as "E" | "S" | "G"] ?? null;
 
-          const diffCost = costA !== null && costB !== null ? Math.round(Math.abs(costA - costB) * 100) : null;
-          const diffBenefit = benefitA !== null && benefitB !== null ? Math.round(Math.abs(benefitA - benefitB) * 100) : null;
+          const diffCost = costA !== null && costB !== null ? (Math.abs(costA - costB) * 100).toFixed(2) : null;
+          const diffBenefit = benefitA !== null && benefitB !== null ? (Math.abs(benefitA - benefitB) * 100).toFixed(2) : null;
 
           const costLeader = costA !== null && costB !== null && costA !== costB ? (costA > costB ? leftCompany.ticker : rightCompany.ticker) : null;
           const benefitLeader = benefitA !== null && benefitB !== null && benefitA !== benefitB ? (benefitA > benefitB ? leftCompany.ticker : rightCompany.ticker) : null;
@@ -930,7 +915,7 @@ export function CompareClient({
                       <span>Cost Score</span>
                       {diffCost !== null && (
                         <span className="bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A] px-1.5 py-0.5 rounded text-[10px] font-extrabold font-mono">
-                          Δ {diffCost}
+                          Δ {diffCost}%
                         </span>
                       )}
                     </div>
@@ -966,7 +951,7 @@ export function CompareClient({
                       <span>Benefit Score</span>
                       {diffBenefit !== null && (
                         <span className="bg-[#D1FAE5] text-[#047857] border border-[#A7F3D0] px-1.5 py-0.5 rounded text-[10px] font-extrabold font-mono">
-                          Δ {diffBenefit}
+                          Δ {diffBenefit}%
                         </span>
                       )}
                     </div>
@@ -1464,11 +1449,547 @@ export function CompareClient({
     );
   };
 
+  // Helper readiness summary & table renderer
+  const renderReadinessTab = () => {
+    if (!leftCompany || !rightCompany || !showComparison) return null;
+
+    const getCompanyReadinessStats = (company: ClientCompany) => {
+      let high = 0;
+      let medium = 0;
+      let low = 0;
+      let assessed = 0;
+
+      for (const topic of allTopics) {
+        const costScore = company.topicScores.find(ts => ts.topicCode === topic.code && (!ts.type || ts.type === "COST"))?.score ?? null;
+        const benefitScore = company.topicScores.find(ts => ts.topicCode === topic.code && ts.type === "BENEFIT")?.score ?? null;
+
+        if (costScore !== null && benefitScore !== null) {
+          assessed++;
+          const avg = (costScore + benefitScore) / 2;
+          if (avg >= 2.5) high++;
+          else if (avg >= 1.5) medium++;
+          else low++;
+        }
+      }
+
+      return { high, medium, low, assessed };
+    };
+
+    const statsLeft = getCompanyReadinessStats(leftCompany);
+    const statsRight = getCompanyReadinessStats(rightCompany);
+
+    const getReadinessCategory = (costScore: number | null, benefitScore: number | null) => {
+      if (costScore === null || benefitScore === null) return "UNASSESSED";
+      const avg = (costScore + benefitScore) / 2;
+      if (avg >= 2.5) return "HIGH";
+      if (avg >= 1.5) return "MEDIUM";
+      return "LOW";
+    };
+
+    const getCategoryRank = (category: string) => {
+      if (category === "HIGH") return 3;
+      if (category === "MEDIUM") return 2;
+      if (category === "LOW") return 1;
+      return 0;
+    };
+
+    const readinessList = allTopics.map((topic) => {
+      const code = topic.code;
+      
+      const scoreObjA_Cost = leftCompany.topicScores.find((ts) => ts.topicCode === code && (!ts.type || ts.type === "COST"));
+      const scoreObjA_Benefit = leftCompany.topicScores.find((ts) => ts.topicCode === code && ts.type === "BENEFIT");
+      const scoreObjB_Cost = rightCompany.topicScores.find((ts) => ts.topicCode === code && (!ts.type || ts.type === "COST"));
+      const scoreObjB_Benefit = rightCompany.topicScores.find((ts) => ts.topicCode === code && ts.type === "BENEFIT");
+
+      const costA = scoreObjA_Cost?.score ?? null;
+      const benefitA = scoreObjA_Benefit?.score ?? null;
+      const costB = scoreObjB_Cost?.score ?? null;
+      const benefitB = scoreObjB_Benefit?.score ?? null;
+
+      const catA = getReadinessCategory(costA, benefitA);
+      const catB = getReadinessCategory(costB, benefitB);
+
+      const avgA = costA !== null && benefitA !== null ? (costA + benefitA) / 2 : null;
+      const avgB = costB !== null && benefitB !== null ? (costB + benefitB) / 2 : null;
+
+      const rankA = getCategoryRank(catA);
+      const rankB = getCategoryRank(catB);
+
+      let note = "-";
+      if (catA !== "UNASSESSED" && catB !== "UNASSESSED" && catA !== catB) {
+        if (rankA > rankB) {
+          note = locale === "id" ? `${leftCompany.ticker} lebih siap` : `${leftCompany.ticker} more ready`;
+        } else if (rankB > rankA) {
+          note = locale === "id" ? `${rightCompany.ticker} lebih siap` : `${rightCompany.ticker} more ready`;
+        }
+      }
+
+      const costTextA = locale === "id" ? scoreObjA_Cost?.disclosureTextId : scoreObjA_Cost?.disclosureTextEn;
+      const costRationaleA = locale === "id" ? scoreObjA_Cost?.rationaleId : scoreObjA_Cost?.rationaleEn;
+
+      const benefitTextA = locale === "id" ? scoreObjA_Benefit?.disclosureTextId : scoreObjA_Benefit?.disclosureTextEn;
+      const benefitRationaleA = locale === "id" ? scoreObjA_Benefit?.rationaleId : scoreObjA_Benefit?.rationaleEn;
+
+      const costTextB = locale === "id" ? scoreObjB_Cost?.disclosureTextId : scoreObjB_Cost?.disclosureTextEn;
+      const costRationaleB = locale === "id" ? scoreObjB_Cost?.rationaleId : scoreObjB_Cost?.rationaleEn;
+
+      const benefitTextB = locale === "id" ? scoreObjB_Benefit?.disclosureTextId : scoreObjB_Benefit?.disclosureTextEn;
+      const benefitRationaleB = locale === "id" ? scoreObjB_Benefit?.rationaleId : scoreObjB_Benefit?.rationaleEn;
+
+      return {
+        code,
+        pillar: topic.pillar,
+        title: getTopicTitleTranslation(topic.code, locale, locale === "id" ? topic.titleId : topic.titleEn),
+        costA,
+        benefitA,
+        avgA,
+        catA,
+        costB,
+        benefitB,
+        avgB,
+        catB,
+        note,
+        costTextA,
+        costRationaleA,
+        benefitTextA,
+        benefitRationaleA,
+        costTextB,
+        costRationaleB,
+        benefitTextB,
+        benefitRationaleB,
+      };
+    });
+
+    const isMdkaAntm =
+      (leftCompany.ticker === "MDKA" && rightCompany.ticker === "ANTM") ||
+      (leftCompany.ticker === "ANTM" && rightCompany.ticker === "MDKA");
+
+    const tableRows = readinessList.filter((item) => {
+      // Filter by Pillar
+      if (readinessPillarFilter !== "all" && item.pillar !== readinessPillarFilter) return false;
+      
+      // Filter by Differences Only
+      if (readinessDiffsOnly) {
+        return item.catA !== item.catB && item.catA !== "UNASSESSED" && item.catB !== "UNASSESSED";
+      }
+      return true;
+    });
+
+    const generateReadinessConclusion = () => {
+      if (isMdkaAntm) {
+        if (locale === "id") {
+          return "Secara keseluruhan, ANTM menunjukkan tingkat kesiapan pengungkapan GRI 14 yang lebih tinggi dibandingkan MDKA. ANTM memiliki 14 unit penilaian dalam kategori High Readiness, sedangkan MDKA memiliki 12 unit. Dari 23 unit penilaian, 20 menunjukkan kategori yang sama dan tiga menunjukkan perbedaan, yaitu pada topik Tailings, Artisanal and Small-Scale Mining, serta Occupational Health and Safety. Pada ketiga topik tersebut, ANTM memiliki tingkat readiness yang lebih tinggi.";
+        } else {
+          return "Overall, ANTM demonstrates a higher level of GRI 14 disclosure readiness than MDKA. ANTM has 14 assessment units classified as High Readiness, compared with 12 for MDKA. Of the 23 assessment units, 20 share the same category and three differ: Tailings, Artisanal and Small-Scale Mining, and Occupational Health and Safety. ANTM records the higher readiness category in all three topics.";
+        }
+      }
+
+      // General fallback dynamic message
+      const nameA = leftCompany.ticker;
+      const nameB = rightCompany.ticker;
+      const highA = statsLeft.high;
+      const highB = statsRight.high;
+
+      const totalCompared = readinessList.filter((item) => item.catA !== "UNASSESSED" && item.catB !== "UNASSESSED").length;
+      const sameCount = readinessList.filter(
+        (item) => item.catA !== "UNASSESSED" && item.catB !== "UNASSESSED" && item.catA === item.catB
+      ).length;
+      const diffCount = totalCompared - sameCount;
+
+      const winner = highA > highB ? nameA : highB > highA ? nameB : null;
+
+      if (locale === "id") {
+        if (winner) {
+          const winnerHigh = winner === nameA ? highA : highB;
+          const loser = winner === nameA ? nameB : nameA;
+          const loserHigh = winner === nameA ? highB : highA;
+          return `${winner} menunjukkan tingkat readiness yang lebih tinggi dengan ${winnerHigh} topik berkategori High Readiness, dibandingkan ${loser} dengan ${loserHigh} topik. Dari ${totalCompared} topik yang dibandingkan, ${sameCount} memiliki kategori yang sama dan ${diffCount} menunjukkan perbedaan.`;
+        } else {
+          return `Kedua perusahaan menunjukkan tingkat readiness yang sama dengan ${highA} topik berkategori High Readiness. Dari ${totalCompared} topik yang dibandingkan, ${sameCount} memiliki kategori yang sama dan ${diffCount} menunjukkan perbedaan.`;
+        }
+      } else {
+        if (winner) {
+          const winnerHigh = winner === nameA ? highA : highB;
+          const loser = winner === nameA ? nameB : nameA;
+          const loserHigh = winner === nameA ? highB : highA;
+          return `${winner} demonstrates a higher readiness level with ${winnerHigh} topics classified as High Readiness, compared with ${loserHigh} topics for ${loser}. Of the ${totalCompared} topics compared, ${sameCount} share the same readiness category and ${diffCount} show differences.`;
+        } else {
+          return `Both companies demonstrate the same readiness level with ${highA} topics classified as High Readiness. Of the ${totalCompared} topics compared, ${sameCount} share the same readiness category and ${diffCount} show differences.`;
+        }
+      }
+    };
+
+    const renderReadinessCard = (company: ClientCompany, stats: ReturnType<typeof getCompanyReadinessStats>) => {
+      return (
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-all">
+          <div className="flex items-center gap-3.5 mb-4">
+            <EmitenLogo ticker={company.ticker} name={company.name} size={44} />
+            <div>
+              <h4 className="font-mono font-bold text-[#0F1B33] uppercase leading-tight">
+                {company.ticker}
+              </h4>
+              <p className="text-xs text-[#64748B] font-semibold line-clamp-1">
+                {company.name}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {/* Assessed Topics Info */}
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-500 border-b border-slate-100 pb-2 mb-2">
+              <span>{locale === "id" ? "Topik yang dinilai" : "Assessed topics"}</span>
+              <span className="font-mono font-bold text-slate-800">{stats.assessed} of 25</span>
+            </div>
+
+            {/* High Readiness */}
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                <span className="text-slate-600">High Readiness</span>
+              </div>
+              <span className="font-mono font-bold text-[#10B981] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                {stats.high} {locale === "id" ? "topik" : "topics"}
+              </span>
+            </div>
+
+            {/* Medium Readiness */}
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
+                <span className="text-slate-600">Medium Readiness</span>
+              </div>
+              <span className="font-mono font-bold text-[#F59E0B] bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                {stats.medium} {locale === "id" ? "topik" : "topics"}
+              </span>
+            </div>
+
+            {/* Low Readiness */}
+            <div className="flex items-center justify-between text-xs font-semibold">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
+                <span className="text-slate-600">Low Readiness</span>
+              </div>
+              <span className="font-mono font-bold text-[#EF4444] bg-red-50 px-2 py-0.5 rounded border border-red-100">
+                {stats.low} {locale === "id" ? "topik" : "topics"}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const renderReadinessBadge = (category: string) => {
+      let badgeClass = "bg-slate-50 text-slate-500 border-slate-200";
+      let label = category;
+
+      if (category === "HIGH") {
+        badgeClass = "bg-[#D1FAE5] text-[#047857] border-[#A7F3D0]";
+        label = locale === "id" ? "High Readiness" : "High Readiness";
+      } else if (category === "MEDIUM") {
+        badgeClass = "bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]";
+        label = locale === "id" ? "Medium Readiness" : "Medium Readiness";
+      } else if (category === "LOW") {
+        badgeClass = "bg-[#FEE2E2] text-[#B91C1C] border-[#FECACA]";
+        label = locale === "id" ? "Low Readiness" : "Low Readiness";
+      } else {
+        badgeClass = "bg-slate-100 text-slate-400 border-slate-200";
+        label = locale === "id" ? "Belum Dinilai" : "Not Assessed";
+      }
+
+      return (
+        <span className={`inline-flex items-center justify-center rounded px-2 py-0.5 text-[9px] font-bold border ${badgeClass}`}>
+          {label}
+        </span>
+      );
+    };
+
+    const toggleExpandTopic = (code: string) => {
+      setExpandedTopics((prev) => ({ ...prev, [code]: !prev[code] }));
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Readiness Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {renderReadinessCard(leftCompany, statsLeft)}
+          {renderReadinessCard(rightCompany, statsRight)}
+        </div>
+
+        {/* How to Read Information Box */}
+        <div className="bg-[#0F1B33]/5 border border-[#0F1B33]/12 rounded-2xl p-4 text-xs sm:text-sm text-slate-700 leading-relaxed shadow-sm space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-[#0F1B33]/10 pb-2">
+            <h4 className="font-extrabold text-xs text-[#0F1B33] uppercase tracking-wider flex items-center gap-2">
+              <svg className="w-4 h-4 text-[#0F1B33]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.832.477 5 1.253m0-13C14.168 5.477 15.754 5 17.5 5s3.332.477 4.5 1.253v13C20.832 18.477 19.246 18 17.5 18s-3.832.477-5 1.253" />
+              </svg>
+              {locale === "id" ? "Cara Membaca" : "How to Read"}
+            </h4>
+            
+            {/* Calculation Basis Tooltip/Small Note */}
+            <div className="relative group flex items-center gap-1 cursor-pointer">
+              <span className="text-[10px] font-bold text-[#087A5B] bg-white border border-[#087A5B]/20 rounded px-1.5 py-0.5 shadow-sm inline-flex items-center gap-1 hover:bg-emerald-50">
+                <svg className="w-3 h-3 text-[#087A5B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {locale === "id" ? "Basis Perhitungan" : "Calculation Basis"}
+              </span>
+              {/* Tooltip Content */}
+              <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-72 bg-[#0F1B33] text-white text-[11px] p-2.5 rounded-lg shadow-xl z-50 border border-slate-800 leading-normal animate-scale-in">
+                {locale === "id"
+                  ? "Readiness ditentukan berdasarkan rata-rata ESG Cost Score dan ESG Expected Benefit Score pada setiap topik."
+                  : "Readiness is determined from the average ESG Cost Score and ESG Expected Benefit Score for each topic."}
+              </div>
+            </div>
+          </div>
+          
+          <p className="text-slate-600 font-medium">
+            {locale === "id"
+              ? "High Readiness menunjukkan bahwa pengungkapan perusahaan telah relatif lengkap dan terukur sesuai topik GRI 14. Medium Readiness menunjukkan bahwa topik telah diungkapkan, tetapi masih memerlukan penguatan pada kelengkapan atau keterukurannya. Low Readiness menunjukkan bahwa pengungkapan masih terbatas atau belum memadai. Jika kedua perusahaan memiliki kategori yang sama, tingkat readiness dinilai setara. Jika kategorinya berbeda, perusahaan dengan kategori lebih tinggi dinilai lebih siap."
+              : "High Readiness indicates that the company’s disclosure is relatively complete and measurable for the relevant GRI 14 topic. Medium Readiness indicates that the topic has been disclosed but still requires improvement in completeness or measurability. Low Readiness indicates limited or inadequate disclosure. When both companies have the same category, their readiness is considered equivalent. When the categories differ, the company with the higher category is considered more ready."}
+          </p>
+        </div>
+
+        {/* Readiness Filters */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Group 1: Filter Diffs */}
+          <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setReadinessDiffsOnly(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                !readinessDiffsOnly
+                  ? "bg-white text-[#0f1b33] shadow-sm"
+                  : "text-[#64748B] hover:text-[#0f1b33]"
+              }`}
+            >
+              {locale === "id" ? "Semua Topik" : "All Topics"}
+            </button>
+            <button
+              onClick={() => setReadinessDiffsOnly(true)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                readinessDiffsOnly
+                  ? "bg-[#087A5B] text-white shadow-sm"
+                  : "text-[#64748B] hover:text-[#0f1b33]"
+              }`}
+            >
+              {locale === "id" ? "Hanya Perbedaan" : "Differences Only"}
+            </button>
+          </div>
+
+          {/* Group 2: Filter Pillars */}
+          <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+            <button
+              onClick={() => setReadinessPillarFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                readinessPillarFilter === "all"
+                  ? "bg-white text-[#0f1b33] shadow-sm"
+                  : "text-[#64748B] hover:text-[#0f1b33]"
+              }`}
+            >
+              {locale === "id" ? "Semua Pilar" : "All Pillars"}
+            </button>
+            {[
+              { key: "E", name: "Environmental" },
+              { key: "S", name: "Social" },
+              { key: "G", name: "Governance" }
+            ].map((p) => (
+              <button
+                key={p.key}
+                onClick={() => setReadinessPillarFilter(p.key as "E" | "S" | "G")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  readinessPillarFilter === p.key
+                    ? "bg-[#087A5B]/10 text-[#087A5B] shadow-sm border border-[#087A5B]/20"
+                    : "text-[#64748B] hover:text-[#0f1b33]"
+                }`}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop View: Detailed Side-by-Side Table (Hidden on small screens) */}
+        <div className="hidden md:block border border-slate-200 rounded-2xl bg-white shadow-sm overflow-hidden animate-fade-in">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm table-fixed border-collapse min-w-[700px] md:min-w-full">
+              <thead className="bg-[#F8FAFC] text-left text-xs uppercase text-[#0F1B33] border-b border-slate-200">
+                <tr>
+                  <th className="py-3 px-4 font-extrabold tracking-wider w-[35%] text-left text-[#0F1B33] bg-[#F8FAFC]">
+                    {locale === "id" ? "Topik Material GRI 14" : "GRI 14 Material Topic"}
+                  </th>
+                  <th className="py-3 px-3 text-center w-[20%] font-extrabold tracking-wider text-[#0F1B33] bg-[#F8FAFC]">
+                    {leftCompany.ticker} Readiness
+                  </th>
+                  <th className="py-3 px-3 text-center w-[20%] font-extrabold tracking-wider text-[#0F1B33] bg-[#F8FAFC]">
+                    {rightCompany.ticker} Readiness
+                  </th>
+                  <th className="py-3 px-4 text-center w-[25%] font-extrabold tracking-wider text-[#0F1B33] bg-[#F8FAFC]">
+                    {locale === "id" ? "Perbandingan" : "Comparison"}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((row) => {
+                  const cleanTitle = row.title
+                    .replace(/^14\.\d+\s*(?:s\/d|t\/o|–|-)?\s*(?:14\.\d+)?\s*/i, "")
+                    .trim();
+
+                  const isExpanded = !!expandedTopics[row.code];
+                  
+                  const hasSource = row.costTextA || row.costRationaleA || row.benefitTextA || row.benefitRationaleA ||
+                                    row.costTextB || row.costRationaleB || row.benefitTextB || row.benefitRationaleB;
+
+                  const isDifferent = row.catA !== row.catB && row.catA !== "UNASSESSED" && row.catB !== "UNASSESSED";
+                  const rowClass = isDifferent 
+                    ? "border-b border-slate-100 bg-[#FEF3C7]/15 border-l-[3.5px] border-l-[#E67E00] hover:bg-[#FEF3C7]/25 transition-colors"
+                    : "border-b border-slate-100 hover:bg-slate-50/50 transition-colors";
+
+                  return (
+                    <tr key={row.code} className={rowClass}>
+                      {/* Topic Code & Title */}
+                      <td className="py-3.5 px-4 text-[#0F1B33] text-left whitespace-normal break-words">
+                        <div className="flex items-center">
+                          <span className="font-mono text-xs text-[#94A3B8] mr-2">
+                            {row.code}
+                          </span>
+                          <span className="font-bold text-xs sm:text-sm">{cleanTitle}</span>
+                        </div>
+                      </td>
+
+                      {/* Left Company Readiness */}
+                      <td className="py-3.5 px-3 text-center">
+                        {renderReadinessBadge(row.catA)}
+                      </td>
+
+                      {/* Right Company Readiness */}
+                      <td className="py-3.5 px-3 text-center">
+                        {renderReadinessBadge(row.catB)}
+                      </td>
+
+                      {/* Comparison badge */}
+                      <td className="py-3.5 px-4 text-center">
+                        {row.note !== "-" && row.note !== "" ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded text-[10px] font-bold bg-[#E67E00]/10 text-[#CC7000] border border-[#FEF6E6]">
+                            {row.note}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-normal">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Mobile View: Stacked Topic Cards (Visible only on small screens) */}
+        <div className="md:hidden space-y-4">
+          {tableRows.map((row) => {
+            const cleanTitle = row.title
+              .replace(/^14\.\d+\s*(?:s\/d|t\/o|–|-)?\s*(?:14\.\d+)?\s*/i, "")
+              .trim();
+
+            const isExpanded = !!expandedTopics[row.code];
+            
+            const hasSource = row.costTextA || row.costRationaleA || row.benefitTextA || row.benefitRationaleA ||
+                              row.costTextB || row.costRationaleB || row.benefitTextB || row.benefitRationaleB;
+
+            const isDifferent = row.catA !== row.catB && row.catA !== "UNASSESSED" && row.catB !== "UNASSESSED";
+            const cardClass = isDifferent
+              ? "border border-slate-200 bg-[#FEF3C7]/5 border-l-[3.5px] border-l-[#E67E00] rounded-2xl p-4 shadow-sm space-y-3 hover:shadow transition-all"
+              : "border border-slate-200 rounded-2xl bg-white p-4 shadow-sm space-y-3 hover:shadow transition-all";
+
+            return (
+              <div key={row.code} className={cardClass}>
+                {/* Topic Header */}
+                <div className="flex justify-between items-start border-b border-slate-100 pb-2.5">
+                  <div className="pr-2">
+                    <span className="font-mono text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded mr-2">
+                      {row.code}
+                    </span>
+                    <span className="font-bold text-[#0F1B33] text-sm">{cleanTitle}</span>
+                  </div>
+                  <span className="text-[10px] font-extrabold text-[#64748B] bg-slate-100 px-2 py-0.5 rounded uppercase tracking-wider shrink-0 mt-0.5">
+                    {row.pillar === "E" ? "Env" : row.pillar === "S" ? "Soc" : "Gov"}
+                  </span>
+                </div>
+
+                {/* Company Readiness Side-by-Side Grid */}
+                <div className="grid grid-cols-2 gap-4 pt-1">
+                  {/* Left Company Stats */}
+                  <div className="space-y-1.5 border-r border-slate-100 pr-4 flex flex-col items-center">
+                    <h5 className="font-bold text-xs text-[#0F1B33] uppercase tracking-wider flex items-center gap-1.5 self-start">
+                      <EmitenLogo ticker={leftCompany.ticker} name={leftCompany.name} size={16} />
+                      {leftCompany.ticker}
+                    </h5>
+                    <div className="pt-1">
+                      {renderReadinessBadge(row.catA)}
+                    </div>
+                  </div>
+
+                  {/* Right Company Stats */}
+                  <div className="space-y-1.5 flex flex-col items-center">
+                    <h5 className="font-bold text-xs text-[#0F1B33] uppercase tracking-wider flex items-center gap-1.5 self-start">
+                      <EmitenLogo ticker={rightCompany.ticker} name={rightCompany.name} size={16} />
+                      {rightCompany.ticker}
+                    </h5>
+                    <div className="pt-1">
+                      {renderReadinessBadge(row.catB)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Comparison Note */}
+                <div className="border-t border-slate-100 pt-2.5">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 bg-slate-50 p-2 rounded-lg">
+                    <span className="text-slate-400 font-medium">{locale === "id" ? "Perbandingan:" : "Comparison:"}</span>
+                    <span>
+                      {row.note !== "-" && row.note !== "" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-[#E67E00]/10 text-[#CC7000] border border-[#FEF6E6]">
+                          {row.note}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 font-normal">-</span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Source label below the table */}
+        <p className="text-xs text-[#64748B] italic mt-3 mb-1">
+          {locale === "id"
+            ? "Sumber: Hasil scoring ESG Cost dan ESG Expected Benefit berdasarkan topik material GRI 14."
+            : "Source: ESG Cost and ESG Expected Benefit scoring results based on GRI 14 material topics."}
+        </p>
+
+        {/* Conclusion Paragraph */}
+        <div className="rounded-xl p-4 bg-[#0F1B33]/5 text-sm text-slate-700 leading-relaxed font-semibold border border-[#0F1B33]/10">
+          <div className="flex items-start gap-2.5">
+            <div className="w-5 h-5 rounded-lg bg-[#0F1B33]/10 flex items-center justify-center text-[#0F1B33] shrink-0 mt-0.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <span>
+              {generateReadinessConclusion()}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const tabs = [
     { id: "summary", label: L.tabSummary },
     { id: "pillars", label: L.tabPillars },
     { id: "cost", label: L.tabCost },
     { id: "benefit", label: L.tabBenefit },
+    { id: "readiness", label: L.tabReadiness },
   ];
 
   return (
@@ -1573,6 +2094,8 @@ export function CompareClient({
                     activeClass = "bg-[#E67E00]/5 text-[#E67E00] border-[#E67E00]";
                   } else if (tab.id === "benefit") {
                     activeClass = "bg-[#087A5B]/5 text-[#087A5B] border-[#087A5B]";
+                  } else if (tab.id === "readiness") {
+                    activeClass = "bg-[#087A5B]/5 text-[#087A5B] border-[#087A5B]";
                   }
                 } else {
                   activeClass = "border-transparent text-[#64748B] hover:text-[#0F1B33] hover:bg-slate-50";
@@ -1581,7 +2104,7 @@ export function CompareClient({
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => handleTabChange(tab.id as "summary" | "pillars" | "cost" | "benefit")}
+                    onClick={() => handleTabChange(tab.id as "summary" | "pillars" | "cost" | "benefit" | "readiness")}
                     className={`px-4 py-2 border-b-2 font-bold text-sm rounded-t-lg transition-all focus:outline-none focus:ring-2 focus:ring-slate-200 shrink-0 ${activeClass}`}
                   >
                     {tab.label}
@@ -1677,6 +2200,13 @@ export function CompareClient({
                 {renderBenefitTable()}
               </div>
             )}
+
+            {/* Tab 5: GRI 14 READINESS */}
+            {activeTab === "readiness" && (
+              <div className="animate-fade-in">
+                {renderReadinessTab()}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1769,7 +2299,7 @@ export function CompareClient({
                       {c.hasScores && c.scores && (
                         <div className="text-right shrink-0">
                           <p className="font-mono font-bold text-xs text-[#0F172A]">
-                            {c.scores.overall.toFixed(2)}
+                            {(c.scores.overall * 100).toFixed(2)}%
                           </p>
                           <p className="text-[9px] text-slate-400 font-semibold uppercase">
                             {levelLabel(c.scores.overallLevel, locale)}

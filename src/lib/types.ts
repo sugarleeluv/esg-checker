@@ -27,6 +27,12 @@ export interface TopicScoreRow {
   nominalCost: string | null;
   rationale: string | null;
   type?: "COST" | "BENEFIT";
+  titleId?: string;
+  titleEn?: string;
+  disclosureTextId?: string | null;
+  disclosureTextEn?: string | null;
+  rationaleId?: string | null;
+  rationaleEn?: string | null;
 }
 
 export interface InsightBullet {

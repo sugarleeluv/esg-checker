@@ -83,27 +83,41 @@ function formatCompanyScoringPrompt(company: CompanyDetailData | null, locale: "
   const isId = locale === "id";
 
   const costOverallStr = company.hasScores && company.scores
-    ? `${Math.round(company.scores.overall * 100)} (${company.scores.overallLevel})`
+    ? `${(company.scores.overall * 100).toFixed(2)}% (${company.scores.overallLevel})`
     : (isId ? "Data scoring Cost belum dianalisis" : "Cost scoring data not analyzed");
 
   const benefitOverallStr = company.hasBenefitScores && company.benefitScores
-    ? `${Math.round(company.benefitScores.overall * 100)} (${company.benefitScores.overallLevel})`
+    ? `${(company.benefitScores.overall * 100).toFixed(2)}% (${company.benefitScores.overallLevel})`
     : (isId ? "Data scoring Expected Benefit belum dianalisis" : "Expected Benefit scoring data not analyzed");
+
+  let gapStr = "";
+  if (company.hasScores && company.scores && company.hasBenefitScores && company.benefitScores) {
+    const costPct = company.scores.overall * 100;
+    const benefitPct = company.benefitScores.overall * 100;
+    const gapVal = Math.abs(benefitPct - costPct).toFixed(2);
+    if (isId) {
+      gapStr = `Disclosure Completeness & Measurability Gap: ${gapVal} poin. Catatan penting: kesenjangan ini merepresentasikan perbedaan dalam tingkat kelengkapan pengungkapan dan keterukuran dampak nyata dari inisiatif keberlanjutan, bukan merupakan ukuran keuntungan finansial/profitabilitas.`;
+    } else {
+      gapStr = `Disclosure Completeness & Measurability Gap: ${gapVal} points. Critical note: this gap represents differences in disclosure completeness and impact measurability of sustainability commitments, rather than financial profit or profitability.`;
+    }
+  } else {
+    gapStr = isId ? "Gap tidak tersedia." : "Gap is not available.";
+  }
 
   let costPillarDetail = "";
   if (company.hasScores && company.scores?.pillars) {
     const p = company.scores.pillars;
-    costPillarDetail = `  - Environmental (E): ${p.E !== null ? Math.round(p.E * 100) : "N/A"}
-  - Social (S): ${p.S !== null ? Math.round(p.S * 100) : "N/A"}
-  - Governance (G): ${p.G !== null ? Math.round(p.G * 100) : "N/A"}`;
+    costPillarDetail = `  - Environmental (E): ${p.E !== null ? (p.E * 100).toFixed(2) + "%" : "N/A"}
+  - Social (S): ${p.S !== null ? (p.S * 100).toFixed(2) + "%" : "N/A"}
+  - Governance (G): ${p.G !== null ? (p.G * 100).toFixed(2) + "%" : "N/A"}`;
   }
 
   let benefitPillarDetail = "";
   if (company.hasBenefitScores && company.benefitScores?.pillars) {
     const p = company.benefitScores.pillars;
-    benefitPillarDetail = `  - Environmental (E): ${p.E !== null ? Math.round(p.E * 100) : "N/A"}
-  - Social (S): ${p.S !== null ? Math.round(p.S * 100) : "N/A"}
-  - Governance (G): ${p.G !== null ? Math.round(p.G * 100) : "N/A"}`;
+    benefitPillarDetail = `  - Environmental (E): ${p.E !== null ? (p.E * 100).toFixed(2) + "%" : "N/A"}
+  - Social (S): ${p.S !== null ? (p.S * 100).toFixed(2) + "%" : "N/A"}
+  - Governance (G): ${p.G !== null ? (p.G * 100).toFixed(2) + "%" : "N/A"}`;
   }
 
   const costTopicsStr = company.costTopics && company.costTopics.length > 0
@@ -135,6 +149,9 @@ ${costPillarDetail}
 Overall ESG Expected Benefit Score: ${benefitOverallStr}
 Expected Benefit Pillar Scores:
 ${benefitPillarDetail}
+
+ESG Disclosure completeness/measurability gap context:
+${gapStr}
 
 Topic-Level ESG Cost Scores (GRI 14):
 ${costTopicsStr}

@@ -50,61 +50,49 @@ function pickBullets(
 
 export function generateInsights(
   ticker: string,
-  rows: TopicScoreRow[],
-  scores: AggregatedScores,
+  costRows: TopicScoreRow[],
+  benefitRows: TopicScoreRow[],
+  costScores: AggregatedScores,
+  benefitScores: AggregatedScores | null,
   locale: Locale,
   peerScores?: { ticker: string; overall: number }[]
 ): CompanyInsights {
-  const strengths = pickBullets(rows, 3, 5);
-  const weaknesses = pickBullets(rows, 1, 5);
+  const strengths = pickBullets(costRows, 3, 5);
+  const weaknesses = pickBullets(costRows, 1, 5);
 
   const templates = locale === "id" ? FUTURE_TEMPLATES_ID : FUTURE_TEMPLATES_EN;
-  const oaParts: string[] = [];
+  
+  const costPct = (costScores.overall * 100).toFixed(2);
+  const benefitPct = benefitScores ? (benefitScores.overall * 100).toFixed(2) : "0.00";
+  const gapVal = benefitScores ? Math.abs(benefitScores.overall - costScores.overall) * 100 : 0.0;
+  const gapPct = gapVal.toFixed(2);
 
+  // Find strongest and weakest pillars from Cost scores
+  const pValues = [
+    { name: "Environmental (E)", val: costScores.pillars.E, labelId: "Lingkungan (E)", labelEn: "Environmental (E)" },
+    { name: "Social (S)", val: costScores.pillars.S, labelId: "Sosial (S)", labelEn: "Social (S)" },
+    { name: "Governance (G)", val: costScores.pillars.G, labelId: "Tata Kelola (G)", labelEn: "Governance (G)" },
+  ];
+  pValues.sort((a, b) => a.val - b.val);
+  const weakestPillar = locale === "id" ? pValues[0].labelId : pValues[0].labelEn;
+  const strongestPillar = locale === "id" ? pValues[pValues.length - 1].labelId : pValues[pValues.length - 1].labelEn;
+
+  let overallAssessment = "";
   if (locale === "id") {
-    oaParts.push(
-      `${ticker} memperoleh skor keseluruhan ${scores.overall.toFixed(2)}/1.00 (${levelLabel(scores.overallLevel, locale)}).`
-    );
-    oaParts.push(
-      `Pilar Lingkungan (E): ${scores.pillars.E.toFixed(2)} (${levelLabel(scores.pillarLevels.E, locale)}), ` +
-        `Sosial (S): ${scores.pillars.S.toFixed(2)} (${levelLabel(scores.pillarLevels.S, locale)}), ` +
-        `Tata Kelola (G): ${scores.pillars.G.toFixed(2)} (${levelLabel(scores.pillarLevels.G, locale)}).`
-    );
-    oaParts.push(
-      `Distribusi: ${scores.distribution.score3} topik Kuat, ${scores.distribution.score2} Sedang, ${scores.distribution.score1} Lemah dari ${rows.length} topik GRI 14.`
-    );
+    overallAssessment = `${ticker} memperoleh Skor Cost ESG sebesar ${costPct}% (${levelLabel(costScores.overallLevel, locale)}) dan Skor Expected Benefit ESG sebesar ${benefitPct}% (${benefitScores ? levelLabel(benefitScores.overallLevel, locale) : "Lemah"}). Kesenjangan (disclosure gap) tercatat sebesar ${gapPct} poin. Wajib dipahami bahwa kesenjangan ini merepresentasikan perbedaan dalam tingkat kelengkapan pengungkapan dan keterukuran dampak nyata dari inisiatif keberlanjutan, bukan merupakan ukuran keuntungan finansial/profitabilitas. Pilar terkuat perusahaan saat ini adalah ${strongestPillar}, sedangkan pilar terlemah yang perlu diprioritaskan untuk perbaikan adalah ${weakestPillar}.`;
   } else {
-    oaParts.push(
-      `${ticker} achieves an overall score of ${scores.overall.toFixed(2)}/1.00 (${levelLabel(scores.overallLevel, locale)}).`
-    );
-    oaParts.push(
-      `Environmental (E): ${scores.pillars.E.toFixed(2)} (${levelLabel(scores.pillarLevels.E, locale)}), ` +
-        `Social (S): ${scores.pillars.S.toFixed(2)} (${levelLabel(scores.pillarLevels.S, locale)}), ` +
-        `Governance (G): ${scores.pillars.G.toFixed(2)} (${levelLabel(scores.pillarLevels.G, locale)}).`
-    );
-    oaParts.push(
-      `Distribution: ${scores.distribution.score3} High, ${scores.distribution.score2} Medium, ${scores.distribution.score1} Low of ${rows.length} GRI 14 topics.`
-    );
+    overallAssessment = `${ticker} achieves an ESG Cost Score of ${costPct}% (${levelLabel(costScores.overallLevel, locale)}) and an ESG Expected Benefit Score of ${benefitPct}% (${benefitScores ? levelLabel(benefitScores.overallLevel, locale) : "Low"}), resulting in a disclosure gap of ${gapPct} points. It is crucial to note that this gap represents differences in disclosure completeness and impact measurability of sustainability commitments, rather than financial profit. The company's strongest performance is in the ${strongestPillar} pillar, while the ${weakestPillar} pillar is the weakest and should be prioritized for improvement.`;
   }
 
   if (peerScores && peerScores.length > 0) {
     const peers = peerScores.filter((p) => p.ticker !== ticker);
     if (peers.length > 0) {
-      const avgPeer =
-        peers.reduce((a, p) => a + p.overall, 0) / peers.length;
-      const delta = scores.overall - avgPeer;
+      const avgPeer = (peers.reduce((a, p) => a + p.overall, 0) / peers.length) * 100;
+      const delta = (costScores.overall * 100) - avgPeer;
       if (locale === "id") {
-        oaParts.push(
-          delta >= 0
-            ? `Skor ${delta >= 0.1 ? "di atas" : "selaras dengan"} rata-rata peer (${avgPeer.toFixed(2)}).`
-            : `Skor ${Math.abs(delta).toFixed(2)} poin di bawah rata-rata peer (${avgPeer.toFixed(2)}).`
-        );
+        overallAssessment += ` Dibandingkan dengan rata-rata peer industri (${avgPeer.toFixed(2)}%), Skor Cost perusahaan berada ${delta >= 0 ? "di atas" : "di bawah"} rata-rata dengan selisih ${Math.abs(delta).toFixed(2)} poin.`;
       } else {
-        oaParts.push(
-          delta >= 0
-            ? `Score is ${delta >= 0.1 ? "above" : "in line with"} peer average (${avgPeer.toFixed(2)}).`
-            : `Score is ${Math.abs(delta).toFixed(2)} points below peer average (${avgPeer.toFixed(2)}).`
-        );
+        overallAssessment += ` Compared to the industry peer average (${avgPeer.toFixed(2)}%), the company's Cost Score is ${delta >= 0 ? "above" : "below"} average by a margin of ${Math.abs(delta).toFixed(2)} points.`;
       }
     }
   }
@@ -113,10 +101,10 @@ export function generateInsights(
   for (const w of weaknesses) {
     if (templates[w.topicCode]) future.push(templates[w.topicCode]);
   }
-  if (scores.pillars.E < 2.2 && scores.pillarLevels.E !== "HIGH") {
+  if (costScores.pillars.E < 0.73 && costScores.pillarLevels.E !== "HIGH") {
     future.push(templates.E_weak);
   }
-  if (scores.distribution.score2 >= 10) {
+  if (costScores.distribution.score2 >= 10) {
     future.push(templates.many_medium);
   }
   if (future.length === 0) {
@@ -130,7 +118,7 @@ export function generateInsights(
   return {
     strengths,
     weaknesses,
-    overallAssessment: oaParts.join(" "),
+    overallAssessment,
     futureInterpretation: [...new Set(future)].slice(0, 5).join(" "),
   };
 }

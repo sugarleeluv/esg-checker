@@ -40,8 +40,7 @@ export function PillarScoreCard({
         <div>
           <p className="text-sm text-[#D97706] font-semibold">{L.overall}</p>
           <p className="text-3xl font-bold text-[#0F172A]">
-            {scores.overall.toFixed(2)}
-            <span className="text-lg font-normal text-[#475569]"> / 3.00</span>
+            {(scores.overall * 100).toFixed(2)}%
           </p>
         </div>
         <span
@@ -55,9 +54,9 @@ export function PillarScoreCard({
           <div key={p.key} className="rounded-lg bg-slate-50 p-3">
             <div className="mb-1 flex justify-between text-sm">
               <span className="font-semibold text-[#0F172A]">{p.label}</span>
-              <span className="text-[#475569]">{p.value.toFixed(2)}</span>
+              <span className="text-[#475569]">{(p.value * 100).toFixed(2)}%</span>
             </div>
-            <ScoreBar value={p.value} />
+            <ScoreBar value={p.value} max={1} />
             <p className={`mt-1 text-xs font-semibold ${levelColor(p.level).split(" ")[0]}`}>
               {levelLabel(p.level, locale)}
             </p>

@@ -11,7 +11,9 @@ export interface ClientCompany {
   name: string | null;
   sector: string | null;
   hasScores: boolean;
+  hasBenefitScores: boolean;
   scores: AggregatedScores | null;
+  benefitScores: AggregatedScores | null;
   profile: {
     ticker: string;
     name: string | null;
@@ -27,6 +29,10 @@ export interface ClientCompany {
     topic: {
       pillar: string;
     };
+    disclosureTextId?: string | null;
+    disclosureTextEn?: string | null;
+    rationaleId?: string | null;
+    rationaleEn?: string | null;
   }[];
 }
 

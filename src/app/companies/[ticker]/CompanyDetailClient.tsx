@@ -36,6 +36,7 @@ export function CompanyDetailClient({
   benefitScores,
   hasScores,
   hasBenefitScores,
+  insightsByLocale,
   profile,
 }: Props) {
   const { locale, L, withLocale } = useLocale();
@@ -203,7 +204,7 @@ export function CompanyDetailClient({
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-mono text-xs font-bold text-slate-700">
-                              {activeScores.pillars.E.toFixed(2)}
+                              {(activeScores.pillars.E * 100).toFixed(2)}%
                             </span>
                             {renderPillarBadge(activeScores.pillarLevels.E)}
                           </div>
@@ -219,7 +220,7 @@ export function CompanyDetailClient({
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-mono text-xs font-bold text-slate-700">
-                              {activeScores.pillars.S.toFixed(2)}
+                              {(activeScores.pillars.S * 100).toFixed(2)}%
                             </span>
                             {renderPillarBadge(activeScores.pillarLevels.S)}
                           </div>
@@ -235,7 +236,7 @@ export function CompanyDetailClient({
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-mono text-xs font-bold text-slate-700">
-                              {activeScores.pillars.G.toFixed(2)}
+                              {(activeScores.pillars.G * 100).toFixed(2)}%
                             </span>
                             {renderPillarBadge(activeScores.pillarLevels.G)}
                           </div>
@@ -273,123 +274,84 @@ export function CompanyDetailClient({
         {/* Right Column: Insight Box */}
         <div>
           {(() => {
-            const eCost = scores?.pillars?.E ?? 0;
-            const eBenefit = benefitScores?.pillars?.E ?? 0;
-            const sCost = scores?.pillars?.S ?? 0;
-            const sBenefit = benefitScores?.pillars?.S ?? 0;
-            const gCost = scores?.pillars?.G ?? 0;
-            const gBenefit = benefitScores?.pillars?.G ?? 0;
-
-            const eCostLevel = scoreToLevel(eCost);
-            const eBenefitLevel = scoreToLevel(eBenefit);
-            const sCostLevel = scoreToLevel(sCost);
-            const sBenefitLevel = scoreToLevel(sBenefit);
-            const gCostLevel = scoreToLevel(gCost);
-            const gBenefitLevel = scoreToLevel(gBenefit);
-
-            const eCostLevelLabel = levelLabel(eCostLevel, locale).toLowerCase();
-            const eBenefitLevelLabel = levelLabel(eBenefitLevel, locale).toLowerCase();
-            const sCostLevelLabel = levelLabel(sCostLevel, locale).toLowerCase();
-            const sBenefitLevelLabel = levelLabel(sBenefitLevel, locale).toLowerCase();
-            const gCostLevelLabel = levelLabel(gCostLevel, locale).toLowerCase();
-            const gBenefitLevelLabel = levelLabel(gBenefitLevel, locale).toLowerCase();
-
-            const environmentalText = isId
-              ? `Pilar Lingkungan memiliki skor Cost sebesar ${eCost.toFixed(2)} (${eCostLevelLabel}) dan Benefit sebesar ${eBenefit.toFixed(2)} (${eBenefitLevelLabel}). Hal ini menunjukkan alokasi biaya inisiatif lingkungan berada pada tingkat ${eCostLevelLabel}, dengan realisasi dampak lingkungan yang tergolong ${eBenefitLevelLabel}.`
-              : `The Environmental pillar has a Cost score of ${eCost.toFixed(2)} (${eCostLevelLabel}) and a Benefit score of ${eBenefit.toFixed(2)} (${eBenefitLevelLabel}). This indicates that environmental cost commitment is ${eCostLevelLabel}, while the realized environmental impact is considered ${eBenefitLevelLabel}.`;
-
-            const socialText = isId
-              ? `Pilar Sosial mencatat skor Cost sebesar ${sCost.toFixed(2)} (${sCostLevelLabel}) dan Benefit sebesar ${sBenefit.toFixed(2)} (${sBenefitLevelLabel}). Ini mencerminkan pengeluaran untuk kesejahteraan pekerja dan hubungan sosial berada di tingkat ${sCostLevelLabel}, dengan dampak sosial nyata tergolong ${sBenefitLevelLabel}.`
-              : `The Social pillar records a Cost score of ${sCost.toFixed(2)} (${sCostLevelLabel}) and a Benefit score of ${sBenefit.toFixed(2)} (${sBenefitLevelLabel}). This reflects that social/labor spending commitment is ${sCostLevelLabel}, with realized social benefits considered ${sBenefitLevelLabel}.`;
-
-            const governanceText = isId
-              ? `Pilar Tata Kelola mencatat skor Cost sebesar ${gCost.toFixed(2)} (${gCostLevelLabel}) dan Benefit sebesar ${gBenefit.toFixed(2)} (${gBenefitLevelLabel}). Hal ini mengindikasikan komitmen biaya kepatuhan internal berada pada tingkat ${gCostLevelLabel}, sementara efektivitas tata kelola nyata tergolong ${gBenefitLevelLabel}.`
-              : `The Governance pillar has a Cost score of ${gCost.toFixed(2)} (${gCostLevelLabel}) and a Benefit score of ${gBenefit.toFixed(2)} (${gBenefitLevelLabel}). This signifies that internal compliance and governance cost commitment is ${gCostLevelLabel}, while actual governance effectiveness is considered ${gBenefitLevelLabel}.`;
-
-            // Kesimpulan
-            const costOverall = scores?.overall ?? 0;
-            const benefitOverall = benefitScores?.overall ?? 0;
-            const gap = Math.abs(costOverall - benefitOverall).toFixed(2);
-
-            const directionId = benefitOverall >= costOverall
-              ? "lebih kuat dibandingkan"
-              : "lebih lemah daripada";
-            const directionEn = benefitOverall >= costOverall
-              ? "stronger than"
-              : "weaker than";
-
-            const avgE = (eCost + eBenefit) / 2;
-            const avgS = (sCost + sBenefit) / 2;
-            const avgG = (gCost + gBenefit) / 2;
-
-            let weakestPillarLabel = isId ? "Lingkungan (E)" : "Environmental (E)";
-            let minAvg = avgE;
-            if (avgS < minAvg) {
-              weakestPillarLabel = isId ? "Sosial (S)" : "Social (S)";
-              minAvg = avgS;
-            }
-            if (avgG < minAvg) {
-              weakestPillarLabel = isId ? "Tata Kelola (G)" : "Governance (G)";
-              minAvg = avgG;
-            }
-
-            const conclusionText = isId
-              ? `Secara keseluruhan, Skor Cost ESG tercatat sebesar ${costOverall.toFixed(2)} sedangkan Skor Benefit ESG adalah ${benefitOverall.toFixed(2)}, menunjukkan kesenjangan (gap) sebesar ${gap}. Hal ini mengindikasikan bahwa realisasi manfaat ESG ${directionId} komitmen biaya dan transparansi perusahaan. Pilar ${weakestPillarLabel} harus menjadi prioritas perbaikan utama untuk mengoptimalkan kinerja ESG.`
-              : `Overall, the ESG Cost Score is ${costOverall.toFixed(2)} while the ESG Benefit Score is ${benefitOverall.toFixed(2)}, showing a gap of ${gap}. This indicates that the realized ESG benefits are ${directionEn} the cost commitment and transparency of the company. The ${weakestPillarLabel} pillar should be the main improvement priority to optimize overall ESG performance.`;
+            const activeInsights = insightsByLocale[locale];
 
             return (
               <InsightBox>
-                {hasScores && scores && hasBenefitScores && benefitScores ? (
-                  <div className="flex flex-col gap-3.5 text-xs text-[#475569] leading-relaxed">
-                    {/* Section 1: Analisis Pilar */}
+                {activeInsights ? (
+                  <div className="flex flex-col gap-5 text-xs text-[#475569] leading-relaxed">
+                    {/* Overall Assessment */}
                     <div className="space-y-2">
                       <h4 className="text-[9px] font-bold text-[#D97706] uppercase tracking-widest">
-                        {isId ? "Analisis Pilar" : "Pillar Analysis"}
-                      </h4>
-                      <div className="flex flex-col gap-2.5">
-                        <div className="border-l-2 border-emerald-500 pl-2">
-                          <p className="font-bold text-[#0F172A] text-[11px] leading-snug">
-                            {isId ? "Environmental (E) - Lingkungan" : "Environmental (E)"}:
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-[#475569] leading-relaxed">
-                            {environmentalText}
-                          </p>
-                        </div>
-
-                        <div className="border-l-2 border-sky-500 pl-2">
-                          <p className="font-bold text-[#0F172A] text-[11px] leading-snug">
-                            {isId ? "Social (S) - Sosial" : "Social (S)"}:
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-[#475569] leading-relaxed">
-                            {socialText}
-                          </p>
-                        </div>
-
-                        <div className="border-l-2 border-indigo-500 pl-2">
-                          <p className="font-bold text-[#0F172A] text-[11px] leading-snug">
-                            {isId ? "Governance (G) - Tata Kelola" : "Governance (G)"}:
-                          </p>
-                          <p className="mt-0.5 text-[11px] text-[#475569] leading-relaxed">
-                            {governanceText}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Section 2: Kesimpulan */}
-                    <div className="space-y-1.5 border-t border-slate-100 pt-2.5">
-                      <h4 className="text-[9px] font-bold text-[#D97706] uppercase tracking-widest">
-                        {isId ? "Kesimpulan" : "Conclusion"}
+                        {isId ? "Analisis & Kesimpulan" : "Analysis & Conclusion"}
                       </h4>
                       <div className="rounded-xl bg-slate-50 border border-slate-100 p-3 flex gap-2.5 items-start">
                         <svg className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
                         <p className="text-[11px] text-[#475569] leading-relaxed font-semibold flex-1">
-                          {conclusionText}
+                          {activeInsights.overallAssessment}
                         </p>
                       </div>
                     </div>
+
+                    {/* Future Recommendation */}
+                    {activeInsights.futureInterpretation && (
+                      <div className="space-y-2 border-t border-slate-100 pt-3">
+                        <h4 className="text-[9px] font-bold text-[#D97706] uppercase tracking-widest">
+                          {isId ? "Rekomendasi Tindakan" : "Recommended Actions"}
+                        </h4>
+                        <p className="text-[11px] text-[#475569] leading-relaxed">
+                          {activeInsights.futureInterpretation}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Key Strengths */}
+                    {activeInsights.strengths && activeInsights.strengths.length > 0 && (
+                      <div className="space-y-2 border-t border-slate-100 pt-3">
+                        <h4 className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">
+                          {isId ? "Kelebihan Utama (Skor 3)" : "Key Strengths (Score 3)"}
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {activeInsights.strengths.map((s) => (
+                            <div key={s.topicCode} className="border-l-2 border-emerald-500 pl-2 py-0.5">
+                              <p className="font-bold text-[#0F172A] text-[11px] leading-snug">
+                                {s.topicCode} - {s.title}
+                              </p>
+                              {s.text && (
+                                <p className="mt-0.5 text-[10px] text-[#64748B] leading-relaxed">
+                                  {s.text}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Key Areas for Improvement */}
+                    {activeInsights.weaknesses && activeInsights.weaknesses.length > 0 && (
+                      <div className="space-y-2 border-t border-slate-100 pt-3">
+                        <h4 className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">
+                          {isId ? "Area Perbaikan (Skor 1)" : "Areas for Improvement (Score 1)"}
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {activeInsights.weaknesses.map((w) => (
+                            <div key={w.topicCode} className="border-l-2 border-rose-500 pl-2 py-0.5">
+                              <p className="font-bold text-[#0F172A] text-[11px] leading-snug">
+                                {w.topicCode} - {w.title}
+                              </p>
+                              {w.text && (
+                                <p className="mt-0.5 text-[10px] text-[#64748B] leading-relaxed">
+                                  {w.text}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="text-slate-500 py-6 text-center text-xs">{L.noScoreYet}</p>
