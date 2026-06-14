@@ -1749,6 +1749,20 @@ export function CompareClient({
           </p>
         </div>
 
+        {/* Conclusion Paragraph */}
+        <div className="rounded-xl p-4 bg-[#0F1B33]/5 text-sm text-slate-700 leading-relaxed font-semibold border border-[#0F1B33]/10">
+          <div className="flex items-start gap-2.5">
+            <div className="w-5 h-5 rounded-lg bg-[#0F1B33]/10 flex items-center justify-center text-[#0F1B33] shrink-0 mt-0.5">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <span>
+              {generateReadinessConclusion()}
+            </span>
+          </div>
+        </div>
+
         {/* Readiness Filters */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Group 1: Filter Diffs */}
@@ -1965,22 +1979,7 @@ export function CompareClient({
           {locale === "id"
             ? "Sumber: Hasil scoring ESG Cost dan ESG Expected Benefit berdasarkan topik material GRI 14."
             : "Source: ESG Cost and ESG Expected Benefit scoring results based on GRI 14 material topics."}
-        </p>
-
-        {/* Conclusion Paragraph */}
-        <div className="rounded-xl p-4 bg-[#0F1B33]/5 text-sm text-slate-700 leading-relaxed font-semibold border border-[#0F1B33]/10">
-          <div className="flex items-start gap-2.5">
-            <div className="w-5 h-5 rounded-lg bg-[#0F1B33]/10 flex items-center justify-center text-[#0F1B33] shrink-0 mt-0.5">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4" />
-              </svg>
-            </div>
-            <span>
-              {generateReadinessConclusion()}
-            </span>
-          </div>
-        </div>
-      </div>
+        </p>      </div>
     );
   };
 
